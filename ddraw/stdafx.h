@@ -19,6 +19,24 @@
 #include <iomanip>
 #include <fstream>
 #include <set>
+#include <atomic>
+#include <thread>
+#include <utility>
+#include <algorithm>
+#include <mutex>
+#include <condition_variable>
+
+
+extern std::string   global_out_path;
+extern std::ofstream global_out_file;
+extern std::ofstream global_out_file_stream;
+extern bool    	     global_is_recording;
+extern bool    	     global_is_recording_ps;
+
+template<class X> void record_struct(const X &x)
+{
+	global_out_file.write((char*)(&x), sizeof(X));
+}
 
 template<class X> void ft_log__(X x)
 {
@@ -60,10 +78,10 @@ template<class Arg, class ... Args> void force_log_impl(std::ostream& os, Arg a,
 
 template<class ... Args> void force_log_i(Args... args)
 {
-	std::ofstream lf;
+	/*std::ofstream lf;
 	lf.open("E:\\log.txt", std::ios_base::app);
 	force_log_impl(lf, args...);
-	lf.close();
+	lf.close();*/
 }
 
 #define force_log(x, ...)

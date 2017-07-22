@@ -5,6 +5,10 @@
 #include <numeric>
 #include <memory>
 #include <iterator>
+#include "Recorder.h"
+#include "SurfaceProcessor.h"
+
+long long g_datarec = 0;
 
 HRESULT SoftwareBlit(WORD* pDstOffset, int dst_pitch, WORD* pSrcOffset, int src_pitch, int blit_w, int blit_h, DWORD flags, LPDDBLTFX fx)
 {
@@ -55,7 +59,7 @@ HRESULT SoftwareBlitMirrored(WORD* pDstOffset, int dst_pitch, WORD* pSrcOffset, 
 }
 
 
-ECPUSurface::ECPUSurface(int x_size, int y_size, Graphics * host, int flags) : ESurface(host, -1, flags), xs(x_size), ys(y_size)
+ECPUSurface::ECPUSurface(int x_size, int y_size, Graphics * host, Handle handle_, int flags) : ESurface(host, handle_, flags), xs(x_size), ys(y_size)
 {
 	data.resize(xs*ys);
 }
@@ -91,25 +95,59 @@ STDMETHODIMP ECPUSurface::Unlock(LPRECT)
 {
 	if (lock_rects.size())
 	{
-		if (mIndex == 3)
+	/*	if (mIndex == 3)
 		{
 			RECT r = lock_rects.back();
 			FillSurface(0xF000, &r);
-		}
+		}*/
 	/*	else
 		if (mIndex == 3)
 		{
 			RECT r = lock_rects.back();
 			FillSurface(0x001F, &r);
 		}*/	
-		else
+	/*	else
 		{
 			RECT r = lock_rects.back();
 			WORD x = (743*mIndex) & 0xFFFF;
 			FillSurface(x, &r);
+		}*/
+		if (global_is_recording)
+		{
+			RECT r = lock_rects.back();
+			if (r.right > xs) r.right = xs;
+			if (r.left > xs) r.left = xs;
+			if (r.top > ys) r.top = ys;
+			if (r.bottom > ys) r.bottom = ys;
+
+			WORD* pS = data.data();
+			pS += xs*r.top + r.left;
+
+            RecStructModifySubSurface rs(mHandle, &r);
+            rs.data_rec = g_datarec;
+            g_datarec += rs.rect.getSize();
+            record_struct(rs);
+
+			record_stream(pS, r.right - r.left,
+				r.bottom - r.top, xs);
+
+            gSP.ModifyRect(mHandle, &r);
 		}
 		lock_rects.clear();
 	}
+	else if (global_is_recording)
+	{
+		RecStructModifySurface rs(mHandle);
+        rs.data_rec = g_datarec;
+        g_datarec += xs*ys;
+		record_struct(rs);
+
+		WORD* pS = data.data();
+		record_stream(pS, xs, ys, xs);
+
+        gSP.ModifyRect(mHandle, RecRect{ 0,0,xs,ys });
+	}
+
 	return DD_OK;
 }
 
@@ -121,12 +159,19 @@ STDMETHODIMP ECPUSurface::Blt(LPRECT pDstRect, LPDIRECTDRAWSURFACE7 pSurf, LPREC
 	{
 		if (flags&DDBLT_COLORFILL)
 		{
-			FillSurface(fx->dwFillColor, pDstRect);
+			if (global_is_recording)
+			{
+				RecStructFillSurface rs(mHandle, flags, pDstRect, fx->dwFillColor);
+				record_struct(rs);
+			}
+
+			FillSurface(static_cast<WORD>(fx->dwFillColor), pDstRect);
 		}
 		 return DD_OK;
 	}
 
 	ESurface* pS = reinterpret_cast<ESurface*>(pSurf);
+
 	return pS->BlitToCPUSurface(this, pDstRect, pSrcRect, flags, fx);
 }
 
@@ -242,13 +287,35 @@ HRESULT ECPUSurface::BlitToCPUSurface(ECPUSurface * pSurf, LPRECT pDstRect, LPRE
 
 	if ((flags & DDBLT_KEYSRC) && color_keyed)
 	{
-		if((flags & DDBLT_DDFX) && (fx->dwDDFX & DDBLTFX_MIRRORLEFTRIGHT))
-			SoftwareBlitMirrored(pDstOffset, pSurf->xs, pSrcOffset, xs, blit_w, blit_h, key_low);
+		if ((flags & DDBLT_DDFX) && (fx->dwDDFX & DDBLTFX_MIRRORLEFTRIGHT))
+		{
+			SoftwareBlitMirrored(pDstOffset, pSurf->xs, pSrcOffset, xs, blit_w, blit_h, static_cast<WORD>(key_low));
+
+			if (global_is_recording)
+			{
+				RecStructMirrorBlit rs(pSurf->mHandle, mHandle, flags, pDstRect, pSrcRect, static_cast<WORD>(key_low));
+				record_struct(rs);
+			}
+		}
 		else
-			SoftwareBlitKeyed(pDstOffset, pSurf->xs, pSrcOffset, xs, blit_w, blit_h, key_low);
+		{
+			SoftwareBlitKeyed(pDstOffset, pSurf->xs, pSrcOffset, xs, blit_w, blit_h, static_cast<WORD>(key_low));
+			if (global_is_recording)
+			{
+				RecStructKeyedBlit rs(pSurf->mHandle, mHandle, flags, pDstRect, pSrcRect, static_cast<WORD>(key_low));
+				record_struct(rs);
+			}
+		}
 	}
 	else
+	{
 		SoftwareBlit(pDstOffset, pSurf->xs, pSrcOffset, xs, blit_w, blit_h, flags, fx);
+		if (global_is_recording)
+		{
+			RecStructBlit rs(pSurf->mHandle, mHandle, flags, pDstRect, pSrcRect);
+			record_struct(rs);
+		}
+	}
 
 	
 	return DD_OK;
@@ -306,10 +373,22 @@ HRESULT ECPUSurface::BlitToESurface(ESurface * pSurf, LPRECT pDstRect, LPRECT pS
 	if ((flags & DDBLT_KEYSRC) && color_keyed)
 	{
 		SoftwareBlitKeyed(pDstOffset, (smem.pitch / sizeof(WORD)), pSrcOffset, xs, blit_w, blit_h, key_low);
+
+		if (global_is_recording)
+		{
+			RecStructKeyedBlit rs(pSurf->mHandle, mHandle, flags, pDstRect, pSrcRect, key_low);
+			record_struct(rs);
+		}
 	}
 	else
 	{
 		SoftwareBlit(pDstOffset, (smem.pitch / sizeof(WORD)), pSrcOffset, xs, blit_w, blit_h, flags, fx);
+
+		if (global_is_recording)
+		{
+			RecStructBlit rs(pSurf->mHandle, mHandle, flags, pDstRect, pSrcRect);
+			record_struct(rs);
+		}
 	}
 
 	pSurf->Unlock(pDstRect);
@@ -372,4 +451,25 @@ void ECPUSurface::Snapshot(std::string fname)
 		p.value = convert16to32(data[p.x + p.y*xs]);
 	}
 	b.Save(fname);
+}
+
+void ECPUSurface::SaveBMP(std::string fname)
+{
+	b.SetSize(xs, ys);
+	WORD* pmem = reinterpret_cast<WORD*>(data.data());
+	WORD* lmem = pmem;
+	for (auto p : b)
+	{
+		if (p.x == 0)
+		{
+			lmem = pmem;
+			pmem += xs;
+		}
+		WORD w = *lmem++;
+		p.value.r = ((w & RED_MASK) >> RED_SHIFT) << (8 - RED_WIDTH);
+		p.value.g = ((w & GREEN_MASK) >> GREEN_SHIFT) << (8 - GREEN_WIDTH);
+		p.value.b = ((w & BLUE_MASK) >> BLUE_SHIFT) << (8 - BLUE_WIDTH);
+	}
+
+	b.Save(fname); 
 }

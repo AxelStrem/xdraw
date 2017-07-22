@@ -11,7 +11,7 @@ class ECPUSurface :
 	int ys;
 	std::vector<RECT> lock_rects;
 public:
-	ECPUSurface(int x_size, int y_size, Graphics* host, int flags);
+	ECPUSurface(int x_size, int y_size, Graphics* host, Handle handle_, int flags);
 	~ECPUSurface();
 
 	STDMETHOD(Lock)(LPRECT, LPDDSURFACEDESC2, DWORD, HANDLE);
@@ -29,5 +29,10 @@ public:
 
 	void FillSurface(WORD color, LPRECT pRect);
 	virtual void Snapshot(std::string fname);
+
+	int GetWidth() { return xs; }
+	int GetHeight() { return ys; }
+
+	void SaveBMP(std::string fname);
 };
 

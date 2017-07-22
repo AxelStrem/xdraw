@@ -9,6 +9,43 @@
 
 #include "FBSurface.h"
 
+#include "Recorder.h"
+#include "SurfaceProcessor.h"
+
+
+void RunRecordingThread()
+{
+	while (true)
+	{
+       // global_recording_buffer.WaitForData();
+		global_recording_buffer.Save();
+        Sleep(10);
+	}
+}
+
+Encoder          gEx{ global_recording_buffer };
+
+void RunEncodingThread()
+{
+	while (true)
+	{
+       // global_encoding_buffer.WaitForData();
+        global_processing_buffer.Encode(gEx);
+        Sleep(10);
+    }
+}
+
+void RunPreprocessingThread()
+{
+    while (true)
+    {
+      //  global_processing_buffer.WaitForData();
+        //gSP.Process();
+        gSP.ClearQueue();
+        Sleep(10);
+    }
+}
+
 EDirectDraw::EDirectDraw(int xr, int yr, IDirectDraw7* pF) : xres(xr), yres(yr), m_cRef(1),
    pFB(pF)
 {
@@ -17,6 +54,18 @@ EDirectDraw::EDirectDraw(int xr, int yr, IDirectDraw7* pF) : xres(xr), yres(yr),
 	//IID_IDirectDrawGammaControl
 	CLEAR_LOG;
 	LOG("EDirectDraw created\r\n");
+
+	if (global_is_recording)
+	{
+		std::thread recorder_thread(RunRecordingThread);
+		recorder_thread.detach();
+
+		std::thread encorder_thread(RunEncodingThread);
+		encorder_thread.detach();
+
+        //std::thread preproc_thread(RunPreprocessingThread);
+       // preproc_thread.detach();
+	}
 }
 
 
@@ -72,12 +121,14 @@ STDMETHODIMP EDirectDraw::CreateSurface(LPDDSURFACEDESC2 pDesc, LPDIRECTDRAWSURF
 		((ESurface*)(surf))->SetFlags(pDesc->ddsCaps.dwCaps);
 		((ESurface*)(surf))->mIndex = index++;
 		*pSurf = surf;
+
+
 		return DD_OK;
 	}
 
 	if (pDesc->ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY)
 	{
-		auto surf = CreateSurface(xs, ys, S_SYSMEM);
+		auto surf = CreateCPUSurface(xs, ys, S_SYSMEM);
 		((ESurface*)(surf))->SetFlags(pDesc->ddsCaps.dwCaps);
 		((ESurface*)(surf))->mIndex = index++;
 		*pSurf = surf;
@@ -180,8 +231,12 @@ STDMETHODIMP EDirectDraw::SetCooperativeLevel(HWND hWindow, DWORD dwFlags)
 {
 	//return pFB->SetCooperativeLevel(hWindow, dwFlags);
    LOG("EDirectDraw::SetCooperativeLevel\r\n");
-	if(mGraphics.Initialize(hWindow, xres, yres))
-		return DD_OK;
+   if (mGraphics.Initialize(hWindow, xres, yres))
+   {
+       mGraphics.InitDisplay();
+	   //mGraphics.RunFrameCycle(0, 30);
+	   return DD_OK;
+   }
 	LOG("EDirectDraw::SetCooperativeLevel FAILED\r\n");
 	return E_INVALIDARG;
 }
@@ -318,16 +373,41 @@ void EDirectDraw::FillCaps(LPDDCAPS caps)
 IDirectDrawSurface7 * EDirectDraw::CreateSurface(int xs, int ys, int flags)
 {
 	Handle ps = mGraphics.CreateSurface(xs,ys,flags);
+
+	if (global_is_recording)
+	{
+		RecStructCreateSurface rs(ps, flags, { xs,ys });
+		record_struct(rs);
+	}
+
 	return new ESurface(&mGraphics, ps, flags);
 }
 
 IDirectDrawSurface7 * EDirectDraw::CreatePrimarySurface(int x_size, int y_size, int flags)
 {
 	Handle ps = mGraphics.CreateSurface(x_size, y_size, flags);
+
+	if (global_is_recording)
+	{
+		RecStructCreateSurface rs(ps, flags, { xres,yres });
+		record_struct(rs);
+        gSP.CreateTexture(ps, xres, yres);
+	}
+
+	mGraphics.SetDisplayReady(true);
 	return new EPrimarySurface(&mGraphics, ps, flags);
 }
 
 IDirectDrawSurface7 * EDirectDraw::CreateCPUSurface(int x_size, int y_size, int flags)
 {
-	return new ECPUSurface(x_size, y_size, &mGraphics, flags);
+	Handle ps = mGraphics.GetNewHandle();
+
+	if (global_is_recording)
+	{
+		RecStructCreateSurface rs(ps, flags, { x_size,y_size });
+		record_struct(rs);
+        gSP.CreateTexture(ps, x_size, y_size);
+	}
+
+	return new ECPUSurface(x_size, y_size, &mGraphics, ps, flags);
 }

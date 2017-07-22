@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "D3DHost.h"
+#include "Recorder.h"
+#include "SurfaceProcessor.h"
 
+#define CHECK_CONTEXT if(!m_deviceContext.get()) return
 
 D3DHost::D3DHost() : m_swapChain(nullptr),
                      m_device(nullptr),
@@ -52,12 +55,22 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 {
 	HRESULT result;
 
-//	fullscreen = false;
+	m_downscale = true;
+	if (m_downscale)
+	{
+		screenWidth /= 2;
+		screenHeight /= 2;
+	}
 
-	shared_com<IDXGIFactory1> factory;
+	res_x = screenWidth;
+	res_y = screenHeight;
+
+	//	fullscreen = false;
+
+	shared_com<IDXGIFactory2> factory;
 	std::vector<shared_com<IDXGIAdapter1>> vAdapters;
 	shared_com<IDXGIOutput> adapterOutput = nullptr;
-	
+
 	unsigned int numModes, i, numerator, denominator, stringLength;
 	DXGI_ADAPTER_DESC adapterDesc;
 	int error;
@@ -65,25 +78,24 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 	D3D_FEATURE_LEVEL featureLevel;
 
 	shared_com<ID3D11Texture2D> backBufferPtr;
-	
+
 	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
 	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
 	D3D11_RASTERIZER_DESC rasterDesc;
 	D3D11_VIEWPORT viewport;
-	float fieldOfView, screenAspect;
 
 	accumulated_time = 0.0;
 	frame_time = 1.0 / 30;
 
 	// Store the vsync setting.
 	m_vsync_enabled = vsync;
-	
+
 	// Create a DirectX graphics interface factory.
-	result = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory);
+	result = CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&factory);
 	if (FAILED(result))
 	{
 		LOG("FU1\r\n");
-    	return false;
+		return false;
 	}
 
 	IDXGIAdapter1* adapter;
@@ -91,7 +103,7 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 	for (unsigned int i = 0;; i++)
 	{
 		result = factory->EnumAdapters1(i, &adapter);
-		
+
 		if (FAILED(result))
 			break;
 
@@ -107,7 +119,7 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 		adapter = l_adapter.get();
 		if (SUCCEEDED(result)) break;
 	}
-	
+
 	if (FAILED(result))
 	{
 		LOG("FU3\r\n");
@@ -141,7 +153,7 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 
 	// Now go through all the display modes and find the one that matches the screen width and height.
 	// When a match is found store the numerator and denominator of the refresh rate for that monitor.
-	for (i = 0; i<numModes; i++)
+	for (i = 0; i < numModes; i++)
 	{
 		if (displayModeList[i].Width == (unsigned int)screenWidth)
 		{
@@ -152,7 +164,7 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 			}
 		}
 	}
-	
+
 
 	// Get the adapter (video card) description.
 	result = adapter->GetDesc(&adapterDesc);
@@ -220,10 +232,32 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 
 	// Don't set the advanced flags.
 	swapChainDesc.Flags = 0;
+
+	DXGI_SWAP_CHAIN_DESC1 sd1{};
+	sd1.BufferCount = swapChainDesc.BufferCount;
+	sd1.BufferUsage = swapChainDesc.BufferUsage;
+	sd1.Flags = swapChainDesc.Flags;
+	sd1.Format = swapChainDesc.BufferDesc.Format;
+	sd1.Height = swapChainDesc.BufferDesc.Height;
+	sd1.Width = swapChainDesc.BufferDesc.Width;
+	sd1.Stereo = false;
+	sd1.Scaling = DXGI_SCALING_STRETCH;
+	sd1.SampleDesc = swapChainDesc.SampleDesc;
+	sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fd1{};
+	fd1.RefreshRate = swapChainDesc.BufferDesc.RefreshRate;
+	fd1.Scaling = swapChainDesc.BufferDesc.Scaling;
+	fd1.ScanlineOrdering = swapChainDesc.BufferDesc.ScanlineOrdering;
+	fd1.Windowed = swapChainDesc.Windowed;
 	
 	// Set the feature level to DirectX 11.
 	featureLevel = D3D_FEATURE_LEVEL_11_0;
 
+	UINT createDeviceFlags = 0;
+#ifdef _DEBUG
+	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
 	for (auto &adapter : vAdapters)
 	{
@@ -231,11 +265,13 @@ bool D3DHost::Initialize(int screenWidth, int screenHeight, bool vsync, HWND hwn
 			//result = D3D11CreateDeviceAndSwapChain(adapter, driverTypes[driverTypeIndex], NULL, 0, &featureLevel, 1,
 			//	D3D11_SDK_VERSION, &swapChainDesc, &m_swapChain, &m_device, NULL, &m_deviceContext);
 
-			result = D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, NULL, 0, &featureLevel, 1, D3D11_SDK_VERSION, &m_device, nullptr, &m_deviceContext);
+			result = D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, NULL, createDeviceFlags, &featureLevel, 1, D3D11_SDK_VERSION, &m_device, nullptr, &m_deviceContext);
 
 			if (SUCCEEDED(result))
 			{
-				result = factory->CreateSwapChain(m_device.get(), &swapChainDesc, &m_swapChain);
+				result = factory->CreateSwapChainForHwnd
+				  (m_device.get(), hwnd, &sd1, &fd1, nullptr, &m_swapChain);
+					//CreateSwapChain(m_device.get(), &swapChainDesc, &m_swapChain);
 				if (FAILED(result))
 				{
 					LOG("FU9\r\n");
@@ -419,7 +455,7 @@ void D3DHost::BeginScene(float red, float green, float blue, float alpha)
 
 	m_deviceContext->IASetInputLayout(m_layout.get());
 
-	m_deviceContext->PSSetShader(m_ps_16bit.get(), nullptr, 0);
+	m_deviceContext->PSSetShader(m_ps_16bit_downscale.get(), nullptr, 0);
 	m_deviceContext->VSSetShader(m_vs_square.get(), nullptr, 0);
 
 	SetModel(mod_square);
@@ -473,6 +509,7 @@ void D3DHost::SetResolution(int screenWidth, int screenHeight)
 
 Texture D3DHost::CreateTexture(int x_size, int y_size, TextureFormat format, int flags)
 {
+    if (!m_device.get()) return{};
 	Texture result;
 
 	D3D11_TEXTURE2D_DESC desc{};
@@ -490,7 +527,7 @@ Texture D3DHost::CreateTexture(int x_size, int y_size, TextureFormat format, int
 	
 	desc.SampleDesc.Count = 1;
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
 	desc.CPUAccessFlags = 0;
 	desc.MiscFlags = 0;
 
@@ -511,6 +548,21 @@ Texture D3DHost::CreateTexture(int x_size, int y_size, TextureFormat format, int
 
 	hr = m_device->CreateShaderResourceView(result.pTexture.get(), &srv_desc, &result.pSRV);
 
+
+	if (hr != S_OK)
+	{
+		LOG("FU\r\n");
+		return result;
+	}
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc{};
+
+	uav_desc.Format = desc.Format;
+	uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	srv_desc.Texture2D.MipLevels = 1;
+	srv_desc.Texture2D.MostDetailedMip = 0;
+
+	m_device->CreateUnorderedAccessView(result.pTexture.get(), &uav_desc, &result.pUAV);
 
 	if (hr != S_OK)
 	{
@@ -550,11 +602,16 @@ Texture D3DHost::CreateTexture(int x_size, int y_size, TextureFormat format, int
 
 void D3DHost::SetTexture(Texture & t)
 {
+    CHECK_CONTEXT;
+	ID3D11UnorderedAccessView* pNullUAV = NULL;
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &pNullUAV, NULL);
+
 	m_deviceContext->PSSetShaderResources(0, 1, &t.pSRV);
 }
 
 bool D3DHost::MapTexture(Texture & t, RECT* pArea)
 {
+    CHECK_CONTEXT false;
 	D3D11_MAPPED_SUBRESOURCE subr;
 	D3D11_MAP map_flags;
 
@@ -607,8 +664,11 @@ bool D3DHost::MapTexture(Texture & t, RECT* pArea)
 
 	HRESULT hr = m_deviceContext->Map(t.pCPUResource.get(), 0, map_flags, 0, &subr);
 	//m_deviceContext->Map()
-	if(hr != S_OK)
+	if (hr != S_OK)
+	{
+		hr = m_device->GetDeviceRemovedReason();
 		return false;
+	}
 	t.pMemory = subr.pData;
 	t.pitch   = subr.RowPitch;
 	//t.bLocked = true;
@@ -620,24 +680,50 @@ bool D3DHost::MapTexture(Texture & t, RECT* pArea)
 	return true;
 }
 
+long long extern g_datarec;
+
 void D3DHost::Unlock(Texture& t)
 {
+    CHECK_CONTEXT;
 	force_log_i("GPU unmap ",t.handle,"\r\n");
-	m_deviceContext->Unmap(t.pCPUResource.get(), 0);
 	t.bLocked = false;
 	if (t.rLocked.empty())
 	{
 		t.GPU.InvalidateAll(t.width, t.height);
+
+		if (global_is_recording)
+		{
+			RecStructModifySurface rs(t.handle);
+            rs.data_rec = g_datarec;
+            g_datarec += t.width*t.height;
+			record_struct(rs);
+			record_stream((WORD*)t.GetAddress(), t.width, t.height, t.GetPitch() / 2);
+            gSP.ModifyRect(t.handle, t.FullRect());
+		}
 	}
 	else
 	{
 		for (RM::Rect r : t.rLocked)
-		{
+	    {
 			t.GPU.InvalidateRect(r);
+
+			if (global_is_recording)
+			{
+				RECT rr = r.toRECT();
+				RecStructModifySubSurface rs(t.handle, RecRect(&rr));
+                rs.data_rec = g_datarec;
+                g_datarec += rs.rect.getSize();
+				record_struct(rs);
+    			WORD* pS = (WORD*)t.GetAddress();
+				pS += (t.GetPitch() / 2)*rr.top + rr.left;
+				record_stream(pS, r.Width(), r.Height(), t.GetPitch() / 2);
+                gSP.ModifyRect(t.handle, &rr);
+			}
 		}
 		t.rLocked.clear();
-	}
-	//t.bMapped = false;
+    }
+
+	m_deviceContext->Unmap(t.pCPUResource.get(), 0);
 }
 
 bool D3DHost::Unmap(Texture & t)
@@ -657,6 +743,7 @@ bool D3DHost::Unmap(Texture & t)
 
 void D3DHost::CopyTexture(Texture & dst, Texture & src)
 {
+    CHECK_CONTEXT;
 	force_log_i("Copy full from ", src.handle, " to ",dst.handle,"\r\n");
 
 	ID3D11Resource* pSrcResource = src.GPU.IsValid() ? src.pTexture.get() : src.pCPUResource.get();
@@ -667,6 +754,7 @@ void D3DHost::CopyTexture(Texture & dst, Texture & src)
 
 void D3DHost::CopySubTexture(Texture & dst, Texture & src, int x, int y, RECT rct)
 {
+    CHECK_CONTEXT;
 	force_log_i("Copy rect from ", src.handle, " (",rct.left,", ",rct.top," - ",rct.right-rct.left,'x',rct.bottom-rct.top,") to ",
 		dst.handle, "(",x,", ",y,")\r\n");
 
@@ -681,7 +769,7 @@ void D3DHost::CopySubTexture(Texture & dst, Texture & src, int x, int y, RECT rc
 	SrcBox.top = rct.top;
 	SrcBox.bottom = rct.bottom;
 
-	RM::Rect dst_rct(x, y, x + blit_sx, x + blit_sy);
+	RM::Rect dst_rct(x, y, blit_sx, blit_sy);
 
 	ValidateTextureRectGPU(src, rct);
 	ValidateTextureRectGPU(dst, dst_rct);
@@ -773,8 +861,121 @@ void D3DHost::CopySubTexture(Texture & dst, Texture & src, int x, int y, RECT rc
 	return;
 }
 
+void D3DHost::BlitTransparent(Texture & dst, Texture & src, int x, int y, RECT rct, DWORD colorkey)
+{
+    CHECK_CONTEXT;
+
+	force_log_i("Transparent blit from ", src.handle, " (", rct.left, ", ", rct.top, " - ", rct.right - rct.left, 'x', rct.bottom - rct.top, ") to ",
+		dst.handle, "(", x, ", ", y, ")\r\n");
+
+	int blit_sx = rct.right - rct.left;
+	int blit_sy = rct.bottom - rct.top;
+
+	if ((blit_sx < 0) || (blit_sy < 0))
+	{
+		return;
+	}
+
+	D3D11_BOX SrcBox;
+	SrcBox.front = 0;
+	SrcBox.back = 1;
+	SrcBox.left = rct.left;
+	SrcBox.right = rct.right;
+	SrcBox.top = rct.top;
+	SrcBox.bottom = rct.bottom;
+
+	RM::Rect dst_rct(x, y, blit_sx, blit_sy);
+
+	ValidateTextureRectGPU(src, rct);
+	ValidateTextureRectGPU(dst, dst_rct);
+
+	BlitFXBuffer fx{};
+	fx.doff_x = x;
+	fx.doff_y = y;
+	fx.soff_x = rct.left;
+	fx.soff_y = rct.top;
+	fx.ckey = colorkey;
+
+	m_deviceContext->UpdateSubresource(m_blit_fx.get(), 0, nullptr, &fx, 0, 0);
+
+	ID3D11ShaderResourceView* pNullSRV = NULL;
+	m_deviceContext->PSSetShaderResources(0, 1, &pNullSRV);
+	m_deviceContext->CSSetShaderResources(0, 1, &pNullSRV);
+
+	ID3D11UnorderedAccessView* pNullUAV = NULL;
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &pNullUAV, NULL);
+
+	m_deviceContext->CSSetShader(m_cs_blit.get(), nullptr, 0);
+	m_deviceContext->CSSetShaderResources(0, 1, &src.pSRV);
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &dst.pUAV, nullptr);
+	m_deviceContext->CSSetConstantBuffers(0, 1, &m_blit_fx);
+	m_deviceContext->Dispatch(blit_sx, blit_sy, 1);
+
+	dst.CPU.InvalidateRect(x, y, x + blit_sx, y + blit_sy);
+
+	return;
+}
+
+void D3DHost::BlitMirrored(Texture & dst, Texture & src, int x, int y, RECT rct, DWORD colorkey)
+{
+    CHECK_CONTEXT;
+
+	force_log_i("Mirrored blit from ", src.handle, " (", rct.left, ", ", rct.top, " - ", rct.right - rct.left, 'x', rct.bottom - rct.top, ") to ",
+		dst.handle, "(", x, ", ", y, ")\r\n");
+
+	int blit_sx = rct.right - rct.left;
+	int blit_sy = rct.bottom - rct.top;
+
+
+	if ((blit_sx < 0) || (blit_sy < 0))
+	{
+		return;
+	}
+
+	D3D11_BOX SrcBox;
+	SrcBox.front = 0;
+	SrcBox.back = 1;
+	SrcBox.left = rct.left;
+	SrcBox.right = rct.right;
+	SrcBox.top = rct.top;
+	SrcBox.bottom = rct.bottom;
+
+	RM::Rect dst_rct(x, y, blit_sx, blit_sy);
+
+	ValidateTextureRectGPU(src, rct);
+	ValidateTextureRectGPU(dst, dst_rct);
+
+	BlitFXBuffer fx{};
+	fx.doff_x = x;
+	fx.doff_y = y;
+	fx.soff_x = rct.left;
+	fx.soff_y = rct.top;
+	fx.ckey = colorkey;
+
+	m_deviceContext->UpdateSubresource(m_blit_fx.get(), 0, nullptr, &fx, 0, 0);
+
+	ID3D11ShaderResourceView* pNullSRV = NULL;
+	m_deviceContext->PSSetShaderResources(0, 1, &pNullSRV);
+	m_deviceContext->CSSetShaderResources(0, 1, &pNullSRV);
+
+	ID3D11UnorderedAccessView* pNullUAV = NULL;
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &pNullUAV, NULL);
+
+	m_deviceContext->CSSetShader(m_cs_mirror.get(), nullptr, 0);
+	m_deviceContext->CSSetShaderResources(0, 1, &src.pSRV);
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &dst.pUAV, nullptr);
+	m_deviceContext->CSSetConstantBuffers(0, 1, &m_blit_fx);
+	m_deviceContext->Dispatch(blit_sx, blit_sy, 1);
+
+	dst.CPU.InvalidateRect(x, y, x + blit_sx, y + blit_sy);
+
+	return;
+}
+
 Model D3DHost::CreateModel()
 {
+    CHECK_CONTEXT{};
+
 	Model result;
 
 	D3D11_BUFFER_DESC vertexBufferDesc, indexBufferDesc;
@@ -853,7 +1054,8 @@ Model D3DHost::CreateModel()
 
 void D3DHost::SetModel(Model & m)
 {
-	unsigned int stride;
+    CHECK_CONTEXT;
+    unsigned int stride;
 	unsigned int offset;
 
 	// Set vertex buffer stride and offset.
@@ -870,45 +1072,85 @@ void D3DHost::SetModel(Model & m)
 	m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 }
 
+
+void D3DHost::ForceFrame(Texture & t)
+{
+	LARGE_INTEGER current_time;
+	QueryPerformanceCounter(&current_time);
+	
+    static LARGE_INTEGER start_time = current_time;
+
+	static const LARGE_INTEGER baseline = []()
+	{
+		LARGE_INTEGER r;
+		QueryPerformanceFrequency(&r);
+		return r;
+	}();
+
+    int bss = global_encoding_buffer.Size();
+    FORCE_LOG(bss);
+    FORCE_LOG(' ');
+
+    bss = global_processing_buffer.Size();
+    FORCE_LOG(bss);
+    FORCE_LOG(' ');
+
+    bss = global_recording_buffer.Size();
+    FORCE_LOG(bss);
+    FORCE_LOG("\r\n");
+
+	double fr = static_cast<double>(current_time.QuadPart) / baseline.QuadPart;
+
+    double ip;
+    fr = 60.0*modf(fr/60.0, &ip);
+
+	RecStructFrameTimestamp rs{ static_cast<int>(fr*10000)&0x7FFFFFFF };
+	record_struct(rs);
+
+    CHECK_CONTEXT;
+
+	force_log_i("=========== frame =========== \r\n");
+	ValidateTextureGPU(t);
+
+	float r = (rand() % 1024) / 1024.f;
+	float g = (rand() % 1024) / 1024.f;
+	float b = (rand() % 1024) / 1024.f;
+
+	BeginScene(r, g, b, 0.0f);
+
+	SetTexture(t);
+	m_deviceContext->DrawIndexed(mod_square.indexCount, 0, 0);
+
+	EndScene();
+
+	if (global_is_recording_ps)
+	{
+		ValidateTextureCPU(t);
+		MapTexture(t, nullptr);
+
+		record_stream((WORD*)t.GetAddress(), t.width, t.height, t.GetPitch() / 2);
+        gSP.ModifyRect(t.handle, t.FullRect());
+
+		Unmap(t);
+	}
+}
+
+
 void D3DHost::Frame(Texture & t)
 {
 	if (CheckTimer())
 	{
-
-		force_log_i("=========== frame =========== \r\n");
-		ValidateTextureGPU(t);
-
-#ifdef COUNTERS
-		FORCE_LOG("\r\nframe: ");
-		FORCE_LOG(t.gpu_load_counter);
-		FORCE_LOG(' ');
-		FORCE_LOG(t.cpu_load_counter);
-		FORCE_LOG(' ');
-		FORCE_LOG(gpu_load_counter);
-		FORCE_LOG(' ');
-		FORCE_LOG(cpu_load_counter);
-		t.gpu_load_counter = 0;
-		t.cpu_load_counter = 0;
-		gpu_load_counter = 0;
-		cpu_load_counter = 0;
-#endif
-
-		float r = (rand() % 1024) / 1024.f;
-		float g = (rand() % 1024) / 1024.f;
-		float b = (rand() % 1024) / 1024.f;
-
-		BeginScene(r, g, b, 0.0f);
-
-		SetTexture(t);
-		m_deviceContext->DrawIndexed(mod_square.indexCount, 0, 0);
-
-		EndScene();
+		ForceFrame(t);
 	}
 }
 
 void D3DHost::FillTexture(Texture & t, DWORD color, RECT * pRect)
 {
+    CHECK_CONTEXT;
+
 	int w, h;
+	BlitFXBuffer fx{};
+
 	if (pRect)
 	{
 		w = pRect->right - pRect->left;
@@ -916,6 +1158,10 @@ void D3DHost::FillTexture(Texture & t, DWORD color, RECT * pRect)
 
 		w = std::min<int>(w, t.width - pRect->left);
 		h = std::min<int>(h, t.height - pRect->top);
+
+		fx.doff_x = pRect->left;
+		fx.doff_y = pRect->top;
+
 	}
 	else
 	{
@@ -923,27 +1169,33 @@ void D3DHost::FillTexture(Texture & t, DWORD color, RECT * pRect)
 		h = t.height;
 	}
 
-	MapTexture(t, pRect);
-
-	WORD* pDst = (WORD*)(t.GetAddress());
-	int pitch = t.GetPitch() / 2;
-
-	if (pRect)
-		pDst += pRect->top*pitch + pRect->left;
-
-	for (int i = 0; i < h; i++)
+	if ((w < 0) || (h < 0))
 	{
-		for (int j = 0; j < w; j++)
-			pDst[j] = color;
-		pDst += pitch;
+		return;
 	}
 
-	Unmap(t);
+	fx.ckey = color;
+
+	m_deviceContext->UpdateSubresource(m_blit_fx.get(), 0, nullptr, &fx, 0, 0);
+	
+	ID3D11ShaderResourceView* pNullSRV = NULL;
+	m_deviceContext->PSSetShaderResources(0, 1, &pNullSRV);
+	m_deviceContext->CSSetShaderResources(0, 1, &pNullSRV);
+
+	m_deviceContext->CSSetShader(m_cs_fill.get(), nullptr, 0);
+	m_deviceContext->CSSetUnorderedAccessViews(0, 1, &t.pUAV, nullptr);
+	m_deviceContext->CSSetConstantBuffers(0, 1, &m_blit_fx);
+	m_deviceContext->Dispatch(w, h, 1);
+
+	t.CPU.InvalidateRect(fx.doff_x, fx.doff_y, fx.doff_x + w, fx.doff_y + h);
+
+	return;
 }
 
 void D3DHost::UpdateSubtexture(Texture & t, LPRECT rct, LPVOID memory, DWORD pitch)
 {
-	ValidateTextureCPU(t);
+    CHECK_CONTEXT;
+    ValidateTextureCPU(t);
 	D3D11_BOX SrcBox;
 	SrcBox.front = 0;
 	SrcBox.back = 1;
@@ -1019,20 +1271,29 @@ void D3DHost::Validate(ID3D11Resource * pDst, ID3D11Resource * pSrc, Invalidator
 
 void D3DHost::ValidateTextureRectCPU(Texture & t, RM::Rect r)
 {
-	if (t.CPU.IsValidRect(r))
-		return;
+	return ValidateTextureCPU(t);
+	//if (t.CPU.IsValidRect(r))
+	//	return;
 	
+	force_log_i("CPU Validating ", t.handle, "(", r.Left(),
+		", ", r.Top(), ", ", r.Right(), ", ", r.Bottom(), ") of ",
+		t.GetXSize(), 'x', t.GetYSize(), "\r\n");
 
 	ValidateRect(t.pCPUResource.get(), t.pTexture.get(), r, t.CPU);
 }
 
 void D3DHost::ValidateTextureRectGPU(Texture & t, RM::Rect r)
 {
-	if (t.GPU.IsValidRect(r))
-		return;
+	return ValidateTextureGPU(t);
+
+	//if (t.GPU.IsValidRect(r))
+	//{
+	//	return;
+	//}
 
 	force_log_i("GPU Validating ", t.handle, "(",r.Left(),
-		", ",r.Top(),", ",r.Right(),", ",r.Bottom(), ")\r\n");
+		", ",r.Top(),", ",r.Right(),", ",r.Bottom(), ") of ",
+		t.GetXSize(),'x',t.GetYSize(),"\r\n");
 
 	ValidateRect(t.pTexture.get(), t.pCPUResource.get(), r, t.GPU);
 }
@@ -1040,16 +1301,32 @@ void D3DHost::ValidateTextureRectGPU(Texture & t, RM::Rect r)
 void D3DHost::ValidateRect(ID3D11Resource * pDst, ID3D11Resource * pSrc, RM::Rect r, Invalidator & inv)
 {
 	RM::RectMerger e = inv.ExtractRect(r);
-	for (RM::Rect r : e)
+	force_log_i("Extracted : ", e.end() - e.begin(),"\r\n");
+	for (auto rr : e)
 	{
-		D3D11_BOX SrcBox;
-		SrcBox.front = 0;
-		SrcBox.back = 1;
-		SrcBox.left = r.Left();
-		SrcBox.right = r.Right();
-		SrcBox.top = r.Top();
-		SrcBox.bottom = r.Bottom();
-		m_deviceContext->CopySubresourceRegion(pDst, 0, r.Left(), r.Top(), 0, pSrc, 0, &SrcBox);
+		force_log_i(rr.Left(), ", ",rr.Top(),", ", rr.Right(),", ", rr.Bottom(),"\r\n");
+	}
+
+	if (e.begin() != e.end())
+	{
+		RM::Rect r = *e.begin();
+		for (RM::Rect l : e)
+		{
+			r = RM::CombineRects(r, l);
+		}
+
+
+		//for (RM::Rect r : e)
+		{
+			D3D11_BOX SrcBox;
+			SrcBox.front = 0;
+			SrcBox.back = 1;
+			SrcBox.left = r.Left();
+			SrcBox.right = r.Right();
+			SrcBox.top = r.Top();
+			SrcBox.bottom = r.Bottom();
+			m_deviceContext->CopySubresourceRegion(pDst, 0, r.Left(), r.Top(), 0, pSrc, 0, &SrcBox);
+		}
 	}
 }
 

@@ -11,6 +11,28 @@ namespace ps_16bit
 #include "ps_16bit.h"
 }
 
+namespace ps_16bit_downscale
+{
+#include "ps_16bit_downscale.h"
+}
+
+namespace cs_blit
+{
+#include "cs_blit.h"
+}
+
+namespace cs_fill
+{
+#include "cs_fill.h"
+}
+
+namespace cs_mirror
+{
+#include "cs_mirror.h"
+}
+
+
+
 void D3DHost::InitializeShaders()
 {
 	HRESULT hr;
@@ -20,6 +42,50 @@ void D3DHost::InitializeShaders()
 		return;
 	}
 	hr = m_device->CreatePixelShader(ps_16bit::g_main, sizeof(ps_16bit::g_main), nullptr, &m_ps_16bit);
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	hr = m_device->CreatePixelShader(ps_16bit_downscale::g_main, sizeof(ps_16bit_downscale::g_main), nullptr, &m_ps_16bit_downscale);
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	hr = m_device->CreateComputeShader(cs_blit::g_main, sizeof(cs_blit::g_main), nullptr, &m_cs_blit);
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	hr = m_device->CreateComputeShader(cs_fill::g_main, sizeof(cs_fill::g_main), nullptr, &m_cs_fill);
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	hr = m_device->CreateComputeShader(cs_mirror::g_main, sizeof(cs_mirror::g_main), nullptr, &m_cs_mirror);
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	D3D11_BUFFER_DESC cbDesc{};
+	cbDesc.ByteWidth = sizeof(BlitFXBuffer);
+	cbDesc.Usage = D3D11_USAGE_DEFAULT;
+	cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbDesc.CPUAccessFlags = 0;
+	cbDesc.MiscFlags = 0;
+	cbDesc.StructureByteStride = 0;
+
+	BlitFXBuffer buf{};
+	buf.ckey = 0x0FF0;
+
+	D3D11_SUBRESOURCE_DATA data{};
+	data.pSysMem = &buf;
+
+	hr = m_device->CreateBuffer(&cbDesc, &data, &m_blit_fx);
 	if (FAILED(hr))
 	{
 		return;

@@ -28,6 +28,8 @@ protected:
 	Graphics* pHost;
 	int flags;
 
+	Handle hBackup = -1;
+
 	bool color_keyed = false;
 	DWORD key_low;
 	DWORD key_high;

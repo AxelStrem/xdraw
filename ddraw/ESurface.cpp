@@ -20,14 +20,15 @@ ESurface::ESurface(Graphics* host, Handle h, int flags_) : pHost(host),mHandle(h
 	{
 		caps.dwCaps |= DDSCAPS_VIDEOMEMORY;
 	}
-	auto s = host->GetSurfaceData(h);
-	b.SetSize(s.x, s.y);
+	//auto s = host->GetSurfaceData(h);
+	//b.SetSize(s.x, s.y);
 }
 
 
 ESurface::~ESurface()
 {
-	pHost->DestroySurface(mHandle);
+    if(pHost)
+	    pHost->DestroySurface(mHandle);
 }
 
 
@@ -71,7 +72,7 @@ STDMETHODIMP ESurface::Blt(LPRECT rect, LPDIRECTDRAWSURFACE7 pSource, LPRECT rec
 			RECT r = *rect;
 			auto s = pHost->GetSurfaceData(mHandle);
 			r.right = std::min<int>(r.right, s.x);
-			r.bottom = std::min<int>(r.right, s.y);
+			r.bottom = std::min<int>(r.bottom, s.y);
 			r.left = std::min<int>(r.left, s.x);
 			r.top = std::min<int>(r.top, s.y);
 			pHost->FillSurface(mHandle, opts->dwFillColor, &r);
@@ -210,9 +211,12 @@ STDMETHODIMP ESurface::GetSurfaceDesc(LPDDSURFACEDESC2 desc)
 
 	desc->dwSize = sizeof(DDSURFACEDESC2);
 	desc->dwFlags = DDSD_PIXELFORMAT | DDSD_WIDTH | DDSD_HEIGHT | DDSD_CAPS;
-	auto size = pHost->GetSurfaceData(mHandle);
-	desc->dwWidth = size.x;
-	desc->dwHeight = size.y;
+	if (pHost)
+	{
+		auto size = pHost->GetSurfaceData(mHandle);
+		desc->dwWidth = size.x;
+		desc->dwHeight = size.y;
+	}
 	desc->ddsCaps.dwCaps = 268485120;
 	GetPixelFormat(&(desc->ddpfPixelFormat));
 	return DD_OK;
@@ -262,16 +266,6 @@ STDMETHODIMP ESurface::Lock(LPRECT rct, LPDDSURFACEDESC2 desc, DWORD flags, HAND
 	desc->dwFlags |= DDSD_PITCH;
 	desc->lpSurface = data.pMem;
 	desc->lPitch = data.pitch;
-
-#ifdef _DEBUG
-	std::wostringstream oss;
-	oss << L"Lock ";
-	oss << std::hex << (int)(data.pMem);
-	oss << L'\n';
-
-	OutputDebugString(oss.str().c_str());
-#endif
-
 
 	LOG("ESurface::Lock() - ");
 	LOG(std::ios_base::hex);
@@ -473,6 +467,26 @@ HRESULT ESurface::BlitToESurface(ESurface * pSurf, LPRECT rect, LPRECT rect_src,
 		y = rect->top;
 	}
 
+	if (mHandle == sHandle)
+	{
+		// self - blit
+		if (hBackup == -1)
+		{
+			hBackup = pHost->CreateSurface(ds.x, ds.y);
+		}
+		pHost->CopySubSurface(hBackup, mHandle, r.left, r.top, r);
+		pHost->CopySubSurface(mHandle, hBackup, x, y, r);
+		return DD_OK;
+	}
+	if ((flags & DDBLT_KEYSRC) && color_keyed)
+	{
+		if ((flags & DDBLT_DDFX) && (fx->dwDDFX & DDBLTFX_MIRRORLEFTRIGHT))
+			pHost->BlitMirroredX(pSurf->mHandle, mHandle, x, y, r, key_low);
+		else
+			pHost->BlitTransparent(pSurf->mHandle, mHandle, x, y, r, key_low);
+		return DD_OK;
+	}
+
 	if ((r.right == ds.x) && (r.bottom == ds.y) && (x == 0) && (y == 0) && (r.left == 0) && (r.right == 0))
 		pHost->CopySurface(pSurf->mHandle, mHandle);
 	else
@@ -494,6 +508,12 @@ HRESULT ESurface::FastBlitToESurface(ESurface * pSurf, DWORD x, DWORD y, LPRECT 
 		r = *rect_src;
 	else
 		r = { 0,0,ss.x,ss.y };
+
+	if ((flags & DDBLT_KEYSRC) && color_keyed)
+	{
+		pHost->BlitTransparent(pSurf->mHandle, mHandle, x, y, r, key_low);
+		return DD_OK;
+	}
 
 	if ((r.right == ds.x) && (r.bottom == ds.y) && (x == 0) && (y == 0) && (r.left == 0) && (r.right == 0))
 		pHost->CopySurface(pSurf->mHandle, mHandle);

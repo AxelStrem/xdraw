@@ -10,6 +10,7 @@
 
 #include "shared_com.hpp"
 #include "RectMerger.h"
+#include "Recorder.h"
 
 #define F_GDI           0x00000001
 #define F_STAGING       0x00000002
@@ -84,6 +85,7 @@ class Texture
 	shared_com<ID3D11Texture2D> pCPUResource;
 	
 	shared_com<ID3D11ShaderResourceView> pSRV;
+	shared_com<ID3D11UnorderedAccessView> pUAV;
 
 	void* pMemory;
 	int pitch;
@@ -117,6 +119,11 @@ public:
 	int GetXSize() { return width; }
 	int GetYSize() { return height; }
 
+    RecRect FullRect() const
+    {
+        return RecRect(0,0,width,height);
+    }
+
 	int handle = 0;
 };
 
@@ -131,6 +138,18 @@ class Model
 	friend class D3DHost;
 public:
 
+};
+
+struct BlitFXBuffer
+{
+	int soff_x;
+	int soff_y;
+	int doff_x;
+	int doff_y;
+	int ckey;
+	int reserved1;
+	int reserved2;
+	int reserved3;
 };
 
 class D3DHost
@@ -161,10 +180,14 @@ public:
 	void          CopyTexture(Texture& dst, Texture& src);
 	void          CopySubTexture(Texture& dst, Texture& src, int x, int y, RECT rct);
 
+	void          BlitTransparent(Texture& dst, Texture& src, int x, int y, RECT rct, DWORD colorkey);
+	void          BlitMirrored(Texture& dst, Texture& src, int x, int y, RECT rct, DWORD colorkey);
+
 	Model         CreateModel();
 	void          SetModel(Model& m);
 
 	void          Frame(Texture& t);
+	void          ForceFrame(Texture& t);
 
 	void          FillTexture(Texture& t, DWORD color, RECT* pRect);
 	void          UpdateSubtexture(Texture& t, LPRECT pDstRect, LPVOID memory, DWORD pitch);
@@ -181,8 +204,12 @@ private:
 	bool CheckTimer();
 
 	bool m_vsync_enabled;
+	bool m_downscale;
 	int m_videoCardMemory;
 	char m_videoCardDescription[128];
+
+	int res_x;
+	int res_y;
 
 	LARGE_INTEGER timestamp;
 	double accumulated_time;
@@ -190,7 +217,7 @@ private:
 
 	Model mod_square;
 	
-	shared_com<IDXGISwapChain> m_swapChain;
+	shared_com<IDXGISwapChain1> m_swapChain;
 	shared_com<ID3D11Device> m_device;
 	shared_com<ID3D11Device1> m_device1;
 	shared_com<ID3D11DeviceContext> m_deviceContext;
@@ -202,6 +229,12 @@ private:
 
 	shared_com<ID3D11VertexShader> m_vs_square;
 	shared_com<ID3D11PixelShader> m_ps_16bit;
+	shared_com<ID3D11PixelShader> m_ps_16bit_downscale;
+	shared_com<ID3D11ComputeShader> m_cs_blit;
+	shared_com<ID3D11ComputeShader> m_cs_mirror;
+	shared_com<ID3D11ComputeShader> m_cs_fill;
+
+	shared_com<ID3D11Buffer> m_blit_fx;
 
 	shared_com<ID3D11InputLayout> m_layout;
 	

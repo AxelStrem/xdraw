@@ -3,11 +3,63 @@
 #include "ddraw_interface.h"
 
 #include "EDirectDraw.h"
+#include "Recorder.h"
 
 #pragma comment(lib,"ddraw.lib")
 
+#define MAX_STR 1024
+
 #define PROLOGUE 
 #define EPILOGUE(x) return x
+
+std::string   global_out_path;
+
+
+
+std::thread   global_recorder_thread;
+
+void InitRecFile()
+{
+	std::ifstream f;
+	std::string fname;
+	int fnum = 0;
+	do
+	{
+		fname = global_out_path + "rec" + std::to_string(fnum++) + ".arc";
+		f.open(fname.c_str(), std::ios_base::binary);
+		if (!f)
+			break;
+		f.close();
+		f.clear();
+	} while (true);
+	f.close();
+	f.clear();
+
+	global_out_file.open(fname.c_str(), std::ios_base::binary);
+	fname.back() = 's';
+	global_out_file_stream.open(fname.c_str(), std::ios_base::binary);
+	global_is_recording = true;
+}
+
+void LoadConfig(void)
+{
+	std::ifstream cfg("xdraw.cfg");
+	while (cfg)
+	{
+		char tmp[MAX_STR];
+		cfg.getline(tmp, MAX_STR);
+		std::string s(tmp);
+		std::istringstream iss(s);
+		std::string cmd;
+		iss >> cmd;
+
+		if (cmd.find("rec", 0) != std::string::npos)
+		{
+			iss >> global_out_path;
+			InitRecFile();
+		}
+	};
+}
 
 extern "C" {
 
@@ -21,6 +73,7 @@ extern "C" {
 		switch (ul_reason_for_call)
 		{
 		case DLL_PROCESS_ATTACH:
+			LoadConfig();
 			return TRUE;
 		case DLL_THREAD_ATTACH:
 			return TRUE;
@@ -40,7 +93,7 @@ extern "C" {
 
 		
 
-		*lplpDD = new EDirectDraw(1920, 1080);
+		*lplpDD = new EDirectDraw(1920*2, 1080*2);
 
 		HRESULT hResult = E_NOTIMPL;
 
@@ -56,7 +109,7 @@ extern "C" {
 		
 		DirectDrawCreateEx(lpGUID, (void**)&pFB, iid, pUnkOuter);
 
-		*lplpDD = new EDirectDraw(1920, 1080, pFB);
+		*lplpDD = new EDirectDraw(1920*2, 1080*2, pFB);
 		return S_OK;
 	}
 

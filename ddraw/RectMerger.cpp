@@ -121,6 +121,13 @@ namespace RM
 	{
 		RectMerger result;
 
+		/*rlist = std::vector<Rect>{ RM::Rect{0,0,500,500},
+			RM::Rect{ 500,0,500,500 },
+			RM::Rect{ 0,500,500,500 },
+			RM::Rect{ 500,500,500,500 } };
+
+		r = RM::Rect{ 250,250,500,500 };*/
+
 		std::vector<Rect> old;
 		std::swap(old, rlist);
 		total_area = 0;
@@ -131,6 +138,8 @@ namespace RM
 		for (Rect l : old)
 		{
 			n_rects.clear();
+			RectSet current_area;
+			current_area.Add(l);
 			for (Rect q : c_rects)
 			{
 				if (RM::Intersects(q, l))
@@ -138,21 +147,22 @@ namespace RM
 					result.AddNotIntersecting(Intersection(q, l));
 					auto d1 = Difference(q, l);
 					n_rects.insert(n_rects.end(), d1.begin(), d1.end());
-					auto d2 = Difference(l, q);
-					for (Rect p : d2)
-						AddNotIntersecting(p);
+					
+					current_area.Subtract(q);
 				}
 				else
 				{
 					n_rects.push_back(q);
-					AddNotIntersecting(l);
 				}
 			}
+
+			for (Rect q : current_area)
+				AddNotIntersecting(q);
 			std::swap(c_rects, n_rects);
 		}
 
-		for (Rect l : c_rects)
-			result.AddNotIntersecting(l);
+		//for (Rect l : c_rects)
+		//	result.AddNotIntersecting(l);
 
 		/*result.AddRect(r);
 		return result;
@@ -221,12 +231,72 @@ namespace RM
 		}
 		if (a.Left() < b.Left())
 		{
-			result.push_back(RM::Rect{ RM::Point{ a.Left(),b.Top() }, RM::Point{ b.Left(),b.Bottom() } });
+			result.push_back(RM::Rect{ RM::Point{ a.Left(),std::max<int>(a.Top(),b.Top()) }, RM::Point{ b.Left(),std::min<int>(a.Bottom(),b.Bottom()) } });
 		}
 		if (a.Right() > b.Right())
 		{
-			result.push_back(RM::Rect{ RM::Point{ b.Right(),b.Top() }, RM::Point{ a.Right(),b.Bottom() } });
+			result.push_back(RM::Rect{ RM::Point{ b.Right(),std::max<int>(a.Top(),b.Top()) }, RM::Point{ a.Right(),std::min<int>(a.Bottom(),b.Bottom()) } });
 		}
 		return result;
+	}
+	void RectSet::Add(Rect r)
+	{
+		mRects.push_back(r);
+	}
+	void RectSet::Intersect(Rect r)
+	{
+		std::vector<Rect> mR;
+		for(Rect l : mRects)
+		{
+			if (Intersects(l, r))
+			{
+				mR.push_back(Intersection(l, r));
+			}
+		}
+		std::swap(mR, mRects);
+	}
+
+	void RectSet::Intersect(RectSet r)
+	{
+		std::vector<Rect> mR;
+
+		for (Rect l : mRects)
+		{
+			for (Rect t : r.mRects)
+			{
+				if (Intersects(l, t))
+				{
+					mR.push_back(Intersection(l, t));
+				}
+			}
+		}
+
+		std::swap(mR, mRects);
+	}
+	void RectSet::Subtract(Rect r)
+	{
+		std::vector<Rect> mR;
+		for (Rect l : mRects)
+		{
+			auto d = Difference(l, r);
+			mR.insert(mR.end(), d.begin(), d.end());
+		}
+		std::swap(mR, mRects);
+	}
+
+	void RectSet::Subtract(RectSet r)
+	{
+		for (Rect l : r.mRects)
+		{
+			Subtract(l);
+		}
+	}
+	std::vector<Rect>::iterator RectSet::begin()
+	{
+		return mRects.begin();
+	}
+	std::vector<Rect>::iterator RectSet::end()
+	{
+		return mRects.end();
 	}
 }

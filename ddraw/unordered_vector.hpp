@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <new>
 
 template <class T> class unordered_vector
 {
@@ -46,9 +47,36 @@ public:
 		free_pos.push_back(pos);
 	}
 
+    template <class ... Args> bool emplace_at(int pos, Args&& ... args)
+    {
+        if (static_cast<int>(data.size()) <= pos)
+        {
+            int s = pos - data.size();
+            int i = data.size();
+            data.insert(data.end(), s, T{});
+            free_pos.reserve(free_pos.size() + s);
+            for (; i < s; i++)
+                free_pos.push_back(i);
+
+            data.emplace_back(args...);
+            return true;
+        }
+        auto it = std::find(free_pos.begin(), free_pos.end(), pos);
+        if (it == free_pos.end())
+            return false;
+
+        *it = free_pos.back();
+        free_pos.pop_back();
+
+        T* pObj = &data[pos];
+        pObj->~T();
+        new (pObj) T{ args... };
+        return true;
+    }
+
 	bool has(int pos)
 	{
-		if (data.size() <= pos)
+		if (static_cast<int>(data.size()) <= pos)
 			return false;
 		return std::find(free_pos.begin(), 
 			free_pos.end(), pos) == free_pos.end();

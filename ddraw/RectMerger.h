@@ -38,9 +38,9 @@ namespace RM
 		Rect() = default;
 		Rect(Point a, Point b) : ul(a), dr(b), s(Vector{ b.x - a.x,b.y - a.y })
 		{}
-		Rect(int x, int y, int sx, int sy) : ul{ x,y }, dr{ x + sx, y + sy }, s(Vector{sx, sy})
+		Rect(int x, int y, int sx, int sy) : ul{ x,y }, dr{ x + sx, y + sy }, s(Vector{ sx, sy })
 		{}
-		Rect(RECT r) : Rect(r.left, r.top, r.right, r.bottom)
+		Rect(RECT r) : Rect(RM::Point{ r.left, r.top }, RM::Point{ r.right, r.bottom })
 		{}
 
 		int Area() const { return s.area; }
@@ -48,6 +48,18 @@ namespace RM
 		int Bottom() const { return dr.y; }
 		int Left() const { return ul.x; }
 		int Right() const { return dr.x; }
+		int Width() const { return s.v.x; }
+		int Height() const { return s.v.y; }
+
+		RECT toRECT() const
+		{
+			RECT r;
+			r.left = Left();
+			r.right = Right();
+			r.top = Top();
+			r.bottom = Bottom();
+			return r;
+		}
 	};
 
 	Point MinPoint(Point a, Point b);
@@ -61,6 +73,22 @@ namespace RM
 	Rect Intersection(Rect a, Rect b);
 
 	std::vector<Rect> Difference(Rect a, Rect b);
+
+	class RectSet
+	{
+		std::vector<Rect> mRects;
+	public:
+		void Add(Rect r);
+
+		void Intersect(Rect r);
+		void Intersect(RectSet r);
+
+		void Subtract(Rect r);
+		void Subtract(RectSet r);
+
+		std::vector<Rect>::iterator begin();
+		std::vector<Rect>::iterator end();
+	};
 
 	class RectMerger
 	{

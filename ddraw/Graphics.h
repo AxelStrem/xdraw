@@ -28,11 +28,16 @@ struct Size2D
 class Graphics
 {
 	unordered_vector<Texture> vSurfaces;
+	std::mutex       mDisplayMutex;
+	std::atomic_bool mDisplayReady;
+	std::atomic_bool mDisplayInitialized;
 public:
 	Graphics();
 	~Graphics();
 
 	bool Initialize(HWND hWnd, int, int);
+	bool InitDisplay();
+	bool IsInitialized();
 	void Shutdown();
 	bool Frame();
 
@@ -45,15 +50,28 @@ public:
 
 	void DestroySurface(Handle h);
 
+	Handle GetNewHandle();
+
 	void CopySurface(Handle dst, Handle src);
 	void CopySubSurface(Handle dst, Handle src, int x, int y, RECT src_rect);
 	
+	void BlitTransparent(Handle dst, Handle src, int x, int y, RECT src_rect, DWORD colorkey);
+	void BlitMirroredX(Handle dst, Handle src, int x, int y, RECT src_rect, DWORD colorkey);
+
 	void FillSurface(Handle h, DWORD color, RECT* pRect = nullptr);
 	void UpdateSubsurface(Handle h, LPRECT pDstRect, LPVOID memory, DWORD pitch);
 
 	int VideoMemory();
 
+	void LockDisplay();
+	void UnlockDisplay();
+	bool DisplayReady();
+	void SetDisplayReady(bool b);
+
 	void UpdateFrame(Handle hPrimary);
+	void ForceUpdateFrame(Handle hPrimary);
+
+	void RunFrameCycle(Handle hPrimary, int fps);
 
 private:
 	bool Render();
