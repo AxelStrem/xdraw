@@ -70,6 +70,11 @@ artifacts/
 *.svclog
 *.scc
 
+#compiled shaders
+ddraw/cs_*.h
+ddraw/ps_*.h
+ddraw/vs_*.h
+
 # Chutzpah Test files
 _Chutzpah*
 
