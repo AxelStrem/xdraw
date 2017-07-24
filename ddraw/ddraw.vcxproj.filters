@@ -161,4 +161,7 @@
       <Filter>Shader Files</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\appveyor.yml" />
+  </ItemGroup>
 </Project>

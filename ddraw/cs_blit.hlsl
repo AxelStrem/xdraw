@@ -1,5 +1,6 @@
 Texture2D<uint> shaderTexture   : register(t0);
-RWTexture2D<uint>   gOutput   : register(u0);
+RWTexture2D<uint>   gOutput   : register(u0);
+
 cbuffer fx : register(b0)
 {
 	int sox;
