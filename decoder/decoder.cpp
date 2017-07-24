@@ -211,7 +211,7 @@ int main(int argc, char* argv[])
 	if (!gf_stream)
 		return 1;
 
-	int control_size = gf_control.tellg();
+	int control_size = static_cast<int>(gf_control.tellg());
 	gf_control.close();
 	gf_control.clear();
 

@@ -323,7 +323,7 @@ HRESULT ECPUSurface::BlitToCPUSurface(ECPUSurface * pSurf, LPRECT pDstRect, LPRE
 
 HRESULT ECPUSurface::FastBlitToCPUSurface(ECPUSurface * pSurf, DWORD x, DWORD y, LPRECT pSrcRect, DWORD flags)
 {
-	RECT rct{ x,y,xs,ys };
+	RECT rct{ static_cast<LONG>(x),static_cast<LONG>(y),xs,ys };
 	if (pSrcRect)
 	{
 		rct.right = x + (pSrcRect->right - pSrcRect->left);
@@ -372,7 +372,7 @@ HRESULT ECPUSurface::BlitToESurface(ESurface * pSurf, LPRECT pDstRect, LPRECT pS
 
 	if ((flags & DDBLT_KEYSRC) && color_keyed)
 	{
-		SoftwareBlitKeyed(pDstOffset, (smem.pitch / sizeof(WORD)), pSrcOffset, xs, blit_w, blit_h, key_low);
+		SoftwareBlitKeyed(pDstOffset, (smem.pitch / sizeof(WORD)), pSrcOffset, xs, blit_w, blit_h, static_cast<WORD>(key_low));
 
 		if (global_is_recording)
 		{
@@ -397,7 +397,7 @@ HRESULT ECPUSurface::BlitToESurface(ESurface * pSurf, LPRECT pDstRect, LPRECT pS
 
 HRESULT ECPUSurface::FastBlitToESurface(ESurface * pSurf, DWORD x, DWORD y, LPRECT pSrcRect, DWORD flags)
 {
-	RECT rct{ x,y,xs,ys };
+    RECT rct{ static_cast<LONG>(x),static_cast<LONG>(y),xs,ys };
 	if (pSrcRect)
 	{
 		rct.right = x + (pSrcRect->right - pSrcRect->left);

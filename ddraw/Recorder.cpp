@@ -65,7 +65,7 @@ CircularBuffer::CircularBuffer() : data(CBSIZE) {}
     {
         *((int*)(data.data() + bend.load())) = val;
         int nend = (bend + sizeof(int));
-        if (nend >= data.size()) nend -= data.size();
+        if (nend >= static_cast<int>(data.size())) nend -= data.size();
         bend.store(nend);
     }
 
@@ -118,6 +118,8 @@ CircularBuffer::CircularBuffer() : data(CBSIZE) {}
 
         bend.store(nend);
         Notify();
+
+        return true;
 	}
 
     CBIter<int> CircularBuffer::begin()
@@ -426,7 +428,7 @@ void Encoder::DecodeSequence()
 
 void Encoder::Decode(WORD * pDst, int size)
 {
-    while (decode_queue.size() < size)
+    while (static_cast<int>(decode_queue.size()) < size)
         DecodeSequence();
 
     for (int i = 0; i < size; ++i)

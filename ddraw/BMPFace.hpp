@@ -233,7 +233,7 @@ public:
 
 		unsigned char ch = 0;
 
-		while (offset < hdr.bfOffBits)
+		while (offset < static_cast<int>(hdr.bfOffBits))
 		{
 			offset++;
 			dst.write(reinterpret_cast<char*>(&ch), 1);

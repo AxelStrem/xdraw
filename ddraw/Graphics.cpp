@@ -15,8 +15,6 @@ Graphics::~Graphics()
 
 bool Graphics::Initialize(HWND hWnd, int screenWidth, int screenHeight)
 {
-	bool result;
-
 	ixr = screenWidth;
 	iyr = screenHeight;
 

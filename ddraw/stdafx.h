@@ -92,7 +92,7 @@ inline int UpdateTimer()
 {
 	LARGE_INTEGER ll;
 	QueryPerformanceCounter(&ll);
-	int t = ll.QuadPart - ___ls.QuadPart;
+	int t = static_cast<int>(ll.QuadPart - ___ls.QuadPart);
 	___ls = ll;
 	return t;
 }
