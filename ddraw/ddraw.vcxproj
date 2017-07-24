@@ -75,22 +75,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ArcanumDir)</OutDir>
+    <OutDir>$(ArcanumDir)\</OutDir>
     <TargetName>xdraw</TargetName>
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>C:\projects\xdraw\</OutDir>
+    <OutDir>$(ArcanumDir)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(ArcanumDir)</OutDir>
+    <OutDir>$(ArcanumDir)\</OutDir>
     <TargetName>xdraw</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>C:\projects\xdraw\</OutDir>
+    <OutDir>$(ArcanumDir)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
