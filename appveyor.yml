@@ -2,5 +2,7 @@ version: 1.0.{build}
 install:
   - cmd: setx ArcanumDir C:\projects\xdraw\
 image: Visual Studio 2017
+configuration: Release
+platform: Win32
 build:
   verbosity: minimal
