@@ -130,7 +130,7 @@ void Graphics::DestroySurface(Handle h)
 
 Handle Graphics::GetNewHandle()
 {
-	Handle h = vSurfaces.insert(Texture{});
+    Handle h = vSurfaces.insert(Texture{});
 	return h;
 }
 

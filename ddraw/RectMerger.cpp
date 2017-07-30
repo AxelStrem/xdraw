@@ -4,15 +4,6 @@
 namespace RM
 {
 
-	RectMerger::RectMerger()
-	{
-	}
-
-
-	RectMerger::~RectMerger()
-	{
-	}
-
 	void RM::RectMerger::AddNotIntersecting(Rect r)
 	{
 		for (int i = 0; i < static_cast<int>(rlist.size()); i++)

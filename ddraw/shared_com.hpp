@@ -38,18 +38,22 @@ public:
 		Release();
 	}
 	
-	shared_com() = default;
+    shared_com()  noexcept
+    {}
 	
-	shared_com(nullptr_t) {}
+    shared_com(nullptr_t)  noexcept
+    {}
 
 	template<class T>
-	shared_com(T* ptr, typename std::enable_if<std::is_convertible<T*, I*>::value,int>::type tag = 0) : mPtr(ptr)
-	{}
+	shared_com(T* ptr, typename std::enable_if<std::is_convertible<T*, I*>::value,int>::type tag = 0)  noexcept : mPtr(ptr)
+	{
+    
+    }
 
     template<class T>
 	shared_com(T* ptr, typename std::enable_if<std::conjunction<std::is_convertible<T*,IUnknown*>,
 		                                                        std::negation<std::is_convertible<T*,I*>>>::value,
-		                                       int>::type tag = 0)
+		                                       int>::type tag = 0)  noexcept
 	{
 		if (ptr->QueryInterface(GetIID<I>(), (void**)(&mPtr)) != S_OK)
 			mPtr = nullptr;
@@ -73,7 +77,7 @@ public:
 	}
 
 	template<class T>
-	shared_com(shared_com<T>&& source) : shared_com(source.get())
+	shared_com(shared_com<T>&& source)  noexcept : shared_com(source.get())
 	{
 		if(mPtr)
 			source.get() = nullptr;
@@ -100,7 +104,7 @@ public:
 	}
 
 	template<class T>
-	shared_com& operator=(T&& source)
+	shared_com& operator=(T&& source) noexcept
 	{
 		shared_com temp(std::forward<T&&>(source));
 		std::swap(mPtr, temp.mPtr);

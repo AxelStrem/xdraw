@@ -95,8 +95,6 @@ namespace RM
 		std::vector<Rect> rlist;
 		int total_area;
 	public:
-		RectMerger();
-		~RectMerger();
 
 		void AddNotIntersecting(Rect r);
 		void AddRect(Rect r);

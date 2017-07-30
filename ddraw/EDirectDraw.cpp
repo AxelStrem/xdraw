@@ -40,7 +40,7 @@ void RunPreprocessingThread()
     while (true)
     {
       //  global_processing_buffer.WaitForData();
-        //gSP.Process();
+        gSP.Process();
         gSP.ClearQueue();
         Sleep(10);
     }
@@ -63,8 +63,8 @@ EDirectDraw::EDirectDraw(int xr, int yr, IDirectDraw7* pF) : xres(xr), yres(yr),
 		std::thread encorder_thread(RunEncodingThread);
 		encorder_thread.detach();
 
-        //std::thread preproc_thread(RunPreprocessingThread);
-       // preproc_thread.detach();
+        std::thread preproc_thread(RunPreprocessingThread);
+        preproc_thread.detach();
 	}
 }
 
