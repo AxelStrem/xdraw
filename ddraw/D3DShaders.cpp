@@ -111,6 +111,30 @@ void D3DHost::InitializeShaders()
 		return;
 	}
 
+    D3D11_BUFFER_DESC cbDesc2{};
+    cbDesc2.ByteWidth = sizeof(DebugmonBuffer);
+    cbDesc2.Usage = D3D11_USAGE_DEFAULT;
+    cbDesc2.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc2.CPUAccessFlags = 0;
+    cbDesc2.MiscFlags = 0;
+    cbDesc2.StructureByteStride = 0;
+
+    DebugmonBuffer dbuf{};
+    dbuf.v1 = 0.5f;
+    dbuf.v2 = 0.6f;
+    dbuf.v3 = 0.7f;
+    dbuf.v4 = 0.8f;
+
+
+    D3D11_SUBRESOURCE_DATA data2{};
+    data2.pSysMem = &dbuf;
+
+    hr = m_device->CreateBuffer(&cbDesc2, &data2, &m_debugmon_buffer);
+    if (FAILED(hr))
+    {
+        return;
+    }
+
 	D3D11_INPUT_ELEMENT_DESC polygonLayout[2];
 	// Now setup the layout of the data that goes into the shader.
 	// This setup needs to match the VertexType stucture in the ModelClass and in the shader.

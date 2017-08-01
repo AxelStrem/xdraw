@@ -38,7 +38,7 @@ void InitRecFile()
 	global_out_file.open(fname.c_str(), std::ios_base::binary);
 	fname.back() = 's';
 	global_out_file_stream.open(fname.c_str(), std::ios_base::binary);
-    global_is_recording = false;// true;
+    global_is_recording = true;
 }
 
 void LoadConfig(void)

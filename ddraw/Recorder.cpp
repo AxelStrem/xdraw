@@ -36,6 +36,11 @@ CircularBuffer::CircularBuffer() : data(CBSIZE) {}
         return (be - bs);
     }
 
+    int CircularBuffer::max_size() const
+    {
+        return CBSIZE;
+    }
+
     void CircularBuffer::WaitForData()
     {
         std::unique_lock<std::mutex> ul(buf_mutex);

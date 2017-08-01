@@ -152,6 +152,14 @@ struct BlitFXBuffer
 	int reserved3;
 };
 
+struct DebugmonBuffer
+{
+    float v1;
+    float v2;
+    float v3;
+    float v4;
+};
+
 class D3DHost
 {
 public:
@@ -193,7 +201,7 @@ public:
 	void          UpdateSubtexture(Texture& t, LPRECT pDstRect, LPVOID memory, DWORD pitch);
     
     void          DrawDebugMonitor();
-
+    void          SetDebugMonitorValues(float a, float b, float c, float d);
 private:
 	void ValidateTextureGPU(Texture& t);
 	void ValidateTextureCPU(Texture& t);
@@ -240,6 +248,7 @@ private:
     shared_com<ID3D11PixelShader> m_ps_debugmon;
 
 	shared_com<ID3D11Buffer> m_blit_fx;
+    shared_com<ID3D11Buffer> m_debugmon_buffer;
 
 	shared_com<ID3D11InputLayout> m_layout;
 	

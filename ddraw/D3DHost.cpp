@@ -463,9 +463,21 @@ void D3DHost::BeginScene(float red, float green, float blue, float alpha)
 	return;
 }
 
+void D3DHost::SetDebugMonitorValues(float a, float b, float c, float d)
+{
+    DebugmonBuffer db{};
+    db.v1 = a;
+    db.v2 = b;
+    db.v3 = c;
+    db.v4 = d;
+
+    m_deviceContext->UpdateSubresource(m_debugmon_buffer.get(), 0, nullptr, &db, 0, 0);
+}
+
 void D3DHost::DrawDebugMonitor()
 {
     m_deviceContext->PSSetShader(m_ps_debugmon.get(), nullptr, 0);
+    m_deviceContext->PSSetConstantBuffers(0, 1, &m_debugmon_buffer);
     m_deviceContext->VSSetShader(m_vs_debugmon.get(), nullptr, 0);
 
     SetModel(mod_square);
@@ -1130,6 +1142,11 @@ void D3DHost::ForceFrame(Texture & t)
 	m_deviceContext->DrawIndexed(mod_square.indexCount, 0, 0);
 
 #ifdef DEBUG_MONITOR
+
+
+    SetDebugMonitorValues(global_encoding_buffer.Size()/static_cast<float>(global_encoding_buffer.max_size()),
+        global_processing_buffer.Size() / static_cast<float>(global_processing_buffer.max_size()), 
+        global_recording_buffer.Size() / static_cast<float>(global_recording_buffer.max_size()), 0.f);
 
     DrawDebugMonitor();
 

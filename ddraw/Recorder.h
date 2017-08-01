@@ -235,6 +235,8 @@ public:
 	int Space();
     int Size();
 
+    int max_size() const;
+
     void WaitForData();
     
     void Clear();
