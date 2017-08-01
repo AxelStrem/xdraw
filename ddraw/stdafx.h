@@ -97,4 +97,4 @@ inline int UpdateTimer()
 	return t;
 }
 
-// TODO: reference additional headers your program requires here
+#define DEBUG_MONITOR

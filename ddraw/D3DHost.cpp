@@ -463,6 +463,14 @@ void D3DHost::BeginScene(float red, float green, float blue, float alpha)
 	return;
 }
 
+void D3DHost::DrawDebugMonitor()
+{
+    m_deviceContext->PSSetShader(m_ps_debugmon.get(), nullptr, 0);
+    m_deviceContext->VSSetShader(m_vs_debugmon.get(), nullptr, 0);
+
+    SetModel(mod_square);
+    m_deviceContext->DrawIndexed(mod_square.indexCount, 0, 0);
+}
 
 void D3DHost::EndScene()
 {
@@ -1120,6 +1128,12 @@ void D3DHost::ForceFrame(Texture & t)
 
 	SetTexture(t);
 	m_deviceContext->DrawIndexed(mod_square.indexCount, 0, 0);
+
+#ifdef DEBUG_MONITOR
+
+    DrawDebugMonitor();
+
+#endif
 
 	EndScene();
 

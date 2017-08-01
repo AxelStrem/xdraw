@@ -191,6 +191,8 @@ public:
 
 	void          FillTexture(Texture& t, DWORD color, RECT* pRect);
 	void          UpdateSubtexture(Texture& t, LPRECT pDstRect, LPVOID memory, DWORD pitch);
+    
+    void          DrawDebugMonitor();
 
 private:
 	void ValidateTextureGPU(Texture& t);
@@ -233,6 +235,9 @@ private:
 	shared_com<ID3D11ComputeShader> m_cs_blit;
 	shared_com<ID3D11ComputeShader> m_cs_mirror;
 	shared_com<ID3D11ComputeShader> m_cs_fill;
+
+    shared_com<ID3D11VertexShader> m_vs_debugmon;
+    shared_com<ID3D11PixelShader> m_ps_debugmon;
 
 	shared_com<ID3D11Buffer> m_blit_fx;
 

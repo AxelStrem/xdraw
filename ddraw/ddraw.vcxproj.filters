@@ -160,6 +160,12 @@
     <FxCompile Include="ps_16bit_downscale.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="vs_debugmon.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="ps_debugmon.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\appveyor.yml" />

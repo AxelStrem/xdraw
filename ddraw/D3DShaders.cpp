@@ -31,6 +31,15 @@ namespace cs_mirror
 #include "cs_mirror.h"
 }
 
+namespace vs_debugmon
+{
+#include "vs_debugmon.h"
+}
+
+namespace ps_debugmon
+{
+#include "ps_debugmon.h"
+}
 
 
 void D3DHost::InitializeShaders()
@@ -46,6 +55,17 @@ void D3DHost::InitializeShaders()
 	{
 		return;
 	}
+
+    hr = m_device->CreateVertexShader(vs_debugmon::g_main, sizeof(vs_debugmon::g_main), nullptr, &m_vs_debugmon);
+    if (FAILED(hr))
+    {
+        return;
+    }
+    hr = m_device->CreatePixelShader(ps_debugmon::g_main, sizeof(ps_debugmon::g_main), nullptr, &m_ps_debugmon);
+    if (FAILED(hr))
+    {
+        return;
+    }
 
 	hr = m_device->CreatePixelShader(ps_16bit_downscale::g_main, sizeof(ps_16bit_downscale::g_main), nullptr, &m_ps_16bit_downscale);
 	if (FAILED(hr))
